@@ -1,12 +1,12 @@
 const sgMail = require('@sendgrid/mail');
 
-// Set the API Key from your environment variables
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
 const sendEmail = async (options) => {
+  // We set the key inside the function to ensure process.env is loaded
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
   const msg = {
     to: options.to, 
-    from: process.env.EMAIL_FROM, // Must be the email you verified in SendGrid
+    from: process.env.EMAIL_FROM, 
     subject: options.subject,
     text: options.text,
     html: options.html,
@@ -17,6 +17,7 @@ const sendEmail = async (options) => {
     console.log('Email sent successfully via SendGrid');
   } catch (error) {
     console.error('SendGrid Error:', error.response ? error.response.body : error.message);
+    // This will show us the EXACT reason if SendGrid rejects it
     throw error;
   }
 };
