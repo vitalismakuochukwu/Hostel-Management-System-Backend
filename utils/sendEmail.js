@@ -1,21 +1,17 @@
 const nodemailer = require('nodemailer');
 
 const sendEmail = async (options) => {
+  // Use the 'service' shortcut which handles ports and hosts automatically
   const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // true for 465, false for other ports
+    service: 'gmail',
     auth: {
       user: process.env.EMAIL_USERNAME,
       pass: process.env.EMAIL_PASSWORD,
     },
-    tls: {
-      rejectUnauthorized: false // This helps bypass some network blocks
-    }
   });
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || 'noreply@hostel.com',
+    from: `Hostel Management <${process.env.EMAIL_USERNAME}>`,
     to: options.to,
     subject: options.subject,
     text: options.text,
