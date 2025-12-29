@@ -109,13 +109,59 @@ const getUserProfile = async (req, res) => {
 
 const updateUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    let token = req.header('Authorization');
+    if (token && token.startsWith('Bearer ')) {
+      token = token.slice(7, token.length).trim();
+    }
+
+    if (!token) {
+      return res.status(401).json({ message: 'No token, authorization denied' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const user = await User.findById(decoded.id);
+
     if (user) {
       user.fullname = req.body.fullname || user.fullname;
+      user.department = req.body.department || user.department;
       const updated = await user.save();
       res.json(updated);
+    } else {
+      res.status(404).json({ message: 'User not found' });
     }
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error("Update Profile Error:", error.message);
+    res.status(401).json({ message: 'Token is not valid' });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    let token = req.header('Authorization');
+    if (token && token.startsWith('Bearer ')) {
+      token = token.slice(7, token.length).trim();
+    }
+    if (!token) return res.status(401).json({ message: 'No token, authorization denied' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) return res.status(400).json({ message: 'All fields required' });
+
+    if (await bcrypt.compare(oldPassword, user.password)) {
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(newPassword, salt);
+      await user.save();
+      res.json({ message: 'Password updated' });
+    } else {
+      res.status(400).json({ message: 'Invalid old password' });
+    }
+  } catch (error) {
+    console.error("Change Password Error:", error.message);
+    res.status(401).json({ message: 'Token is not valid' });
+  }
 };
 
 const resendCode = async (req, res) => {
@@ -157,4 +203,4 @@ const resetPassword = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Server error' }); }
 };
 
-module.exports = { registerUser, loginUser, verifyEmail, activateAccount, getUserProfile, updateUserProfile, resendCode, forgotPassword, resetPassword };
+module.exports = { registerUser, loginUser, verifyEmail, activateAccount, getUserProfile, updateUserProfile, changePassword, resendCode, forgotPassword, resetPassword };
