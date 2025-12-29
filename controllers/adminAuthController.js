@@ -1,18 +1,25 @@
 const Admin = require('../models/Admin');
 const crypto = require('crypto');
 const sgMail = require('@sendgrid/mail');
+const jwt = require('jsonwebtoken');
 
 // Initialize SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// Helper function to generate JWT
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: '1d', // Token expires in 24 hours
+  });
+};
 
 // @desc    Register Admin
 const registerAdmin = async (req, res) => {
   const { name, email, password, adminSecret } = req.body;
   
   try {
-    // This looks for the secret you just set in Render
+    // 1. Security Check for Secret Key
     const SECRET = process.env.ADMIN_SECRET; 
-    
     if (adminSecret !== SECRET) {
       return res.status(403).json({ 
         success: false, 
@@ -25,11 +32,12 @@ const registerAdmin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already registered' });
     }
 
-    // Pass PLAIN password - let the Admin.js model handle hashing
+    // 2. Create Admin (Model hashes password automatically)
     const admin = await Admin.create({ name, email, password });
     
     res.status(201).json({ 
       success: true, 
+      token: generateToken(admin._id),
       admin: { id: admin._id, name: admin.name, email: admin.email } 
     });
   } catch (err) {
@@ -43,14 +51,14 @@ const loginAdmin = async (req, res) => {
   try {
     const admin = await Admin.findOne({ email });
     
-    // Check if admin exists AND if password matches
+    // Check if admin exists AND if password matches using Schema method
     if (admin && (await admin.matchPassword(password))) {
       res.json({ 
         success: true, 
+        token: generateToken(admin._id), // Sends the token to frontend
         admin: { id: admin._id, name: admin.name, email: admin.email } 
       });
     } else {
-      // If either fails, return 401
       res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
   } catch (err) {
@@ -80,9 +88,8 @@ const updatePassword = async (req, res) => {
     const admin = await Admin.findOne({ email });
     
     if (admin && (await admin.matchPassword(currentPassword))) {
-      // Just assign the plain new password; pre-save hook will hash it automatically
       admin.password = newPassword; 
-      await admin.save();
+      await admin.save(); // pre-save hook hashes newPassword
       res.json({ success: true, message: 'Password updated successfully' });
     } else {
       res.status(400).json({ success: false, message: 'Incorrect current password' });
@@ -116,9 +123,8 @@ const forgotPassword = async (req, res) => {
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; text-align: center;">
           <h2 style="color: #1a5c2a;">Password Reset Request</h2>
-          <p>You requested to reset your admin password. Click the button below to continue:</p>
-          <a href="${resetUrl}" style="background: #1a5c2a; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0;">Reset Password</a>
-          <p style="font-size: 12px; color: #777;">This link will expire in 10 minutes.</p>
+          <p>You requested to reset your admin password. Click the link below:</p>
+          <a href="${resetUrl}" style="background: #1a5c2a; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
         </div>
       `,
     };
@@ -126,7 +132,6 @@ const forgotPassword = async (req, res) => {
     await sgMail.send(msg);
     res.status(200).json({ success: true, data: 'Reset email sent' });
   } catch (err) {
-    console.error("SendGrid Error:", err.response ? err.response.body : err);
     res.status(500).json({ success: false, message: 'Email could not be sent' });
   }
 };
@@ -147,9 +152,7 @@ const resendCode = async (req, res) => {
       to: email,
       from: process.env.EMAIL_FROM,
       subject: 'Your Password Reset Code',
-      html: `<div style="font-family: sans-serif; padding: 20px;">
-               <h3>Your reset code is: <span style="color: #1a5c2a;">${code}</span></h3>
-             </div>`,
+      html: `<h3>Your reset code is: <span style="color: #1a5c2a;">${code}</span></h3>`,
     };
 
     await sgMail.send(msg);
