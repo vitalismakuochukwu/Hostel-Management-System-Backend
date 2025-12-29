@@ -7,19 +7,30 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // @desc    Register Admin
 const registerAdmin = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, adminSecret } = req.body;
+  
   try {
-    const adminExists = await Admin.findOne({ email });
-    if (adminExists) {
-      return res.status(400).json({ success: false, message: 'Admin already exists' });
+    // This looks for the secret you just set in Render
+    const SECRET = process.env.ADMIN_SECRET; 
+    
+    if (adminSecret !== SECRET) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Invalid Admin Secret Key. Registration denied.' 
+      });
     }
 
-    // Pass the PLAIN password. The Admin model's pre-save hook will hash it.
+    const adminExists = await Admin.findOne({ email });
+    if (adminExists) {
+      return res.status(400).json({ success: false, message: 'Email already registered' });
+    }
+
+    // Pass PLAIN password - let the Admin.js model handle hashing
     const admin = await Admin.create({ name, email, password });
     
     res.status(201).json({ 
       success: true, 
-      admin: { id: admin._id, name: admin.name, email: admin.email, role: admin.role } 
+      admin: { id: admin._id, name: admin.name, email: admin.email } 
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
