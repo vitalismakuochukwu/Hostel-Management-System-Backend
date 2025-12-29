@@ -54,9 +54,10 @@
 
 const express = require('express');
 const router = express.Router();
-const { forgotPassword, loginAdmin, registerAdmin } = require('../controllers/adminAuthController');
+const { forgotPassword, loginAdmin, registerAdmin, verifyActivation } = require('../controllers/adminAuthController');
 
 router.post('/login', loginAdmin);
+router.post('/verify-activation', verifyActivation);
 router.post('/register', registerAdmin);
 router.post('/forgot-password', forgotPassword); // Points to the clean controller logic
 
