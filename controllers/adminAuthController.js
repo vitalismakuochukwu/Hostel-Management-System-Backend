@@ -32,13 +32,14 @@ const loginAdmin = async (req, res) => {
   try {
     const admin = await Admin.findOne({ email });
     
-    // Using the matchPassword method from your Admin Schema
+    // Check if admin exists AND if password matches
     if (admin && (await admin.matchPassword(password))) {
       res.json({ 
         success: true, 
-        admin: { id: admin._id, name: admin.name, email: admin.email, role: admin.role } 
+        admin: { id: admin._id, name: admin.name, email: admin.email } 
       });
     } else {
+      // If either fails, return 401
       res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
   } catch (err) {
