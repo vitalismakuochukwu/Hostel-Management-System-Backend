@@ -3,6 +3,9 @@ const router = express.Router();
 const crypto = require('crypto');
 // Assuming Admin model exists in models/Admin.js. If you use User model for admins, change this to require('../models/User')
 const Admin = require('../models/Admin'); 
+const sgMail = require('@sendgrid/mail');
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 router.post('/forgot-password', async (req, res) => {
   try {
@@ -24,11 +27,21 @@ router.post('/forgot-password', async (req, res) => {
     await admin.save();
 
     // Create Reset URL (Pointing to frontend reset page)
-    const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+    // Build the Reset URL using your LIVE frontend URL, not localhost
+    const resetUrl = `https://futo-hostels-frontend.onrender.com/reset-password/${resetToken}`;
 
-    // Simulate Sending Email
-    console.log(`\n\n--- PASSWORD RESET EMAIL ---\nTo: ${email}\nLink: ${resetUrl}\n----------------------------\n`);
+    const msg = {
+      to: admin.email,
+      from: process.env.EMAIL_FROM, // Must be your verified gmail
+      subject: 'Admin Password Reset',
+      html: `
+        <p>You requested a password reset</p>
+        <p>Click this <a href="${resetUrl}">link</a> to reset your password.</p>
+      `,
+    };
 
+    // THIS is the line that actually sends the email. 
+    await sgMail.send(msg);
     res.json({ success: true, message: 'Email sent' });
   } catch (error) {
     console.error(error);

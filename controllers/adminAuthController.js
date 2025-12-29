@@ -243,24 +243,42 @@ const forgotPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Email not found' });
     }
 
-    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
-    admin.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000; 
+    // 1. Create Reset Token
+    const resetToken = crypto.randomBytes(20).toString('hex');
 
+    // 2. Save Hashed Token to DB
+    admin.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 Minutes
     await admin.save();
 
+    // 3. Create the Reset URL (REPLACE with your real Frontend URL)
+    const frontendUrl = "https://futo-hostels-frontend.onrender.com"; 
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+
+    // 4. SendGrid Message Object
     const msg = {
-      to: email,
-      from: process.env.EMAIL_FROM, // Must be verified in SendGrid
+      to: admin.email,
+      from: process.env.EMAIL_FROM, // Must be vitalismakuo@gmail.com
       subject: 'Admin Password Reset Request',
-      text: `You have requested a password reset. Your reset code is: ${resetToken}`,
-      html: `<strong>You have requested a password reset. Your reset code is: ${resetToken}</strong>`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee;">
+          <h2>Password Reset Request</h2>
+          <p>You are receiving this because you (or someone else) requested a password reset for your admin account.</p>
+          <p>Please click on the button below to complete the process:</p>
+          <a href="${resetUrl}" style="background: #1a5c2a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
+          <p>If you did not request this, please ignore this email.</p>
+          <hr />
+          <p>This link will expire in 10 minutes.</p>
+        </div>
+      `,
     };
 
+    // 5. THE ACTUAL SEND COMMAND (This replaces the console.log)
     await sgMail.send(msg);
-    res.status(200).json({ success: true, data: 'Email sent' });
+
+    res.status(200).json({ success: true, data: 'Email sent successfully' });
   } catch (err) {
-    console.error("SendGrid Admin Error:", err.response ? err.response.body : err);
+    console.error("SendGrid Error:", err.response ? err.response.body : err);
     res.status(500).json({ success: false, message: 'Email could not be sent' });
   }
 };
