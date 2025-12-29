@@ -4,6 +4,7 @@ const Admin = require('../models/Admin');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const sendEmail = require('../utils/sendEmail');
+const { registerAdmin } = require('../controllers/adminAuthController');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'secret', {
@@ -12,6 +13,8 @@ const generateToken = (id) => {
 };
 
 // @route   POST /api/admin/auth/login
+router.post('/register', registerAdmin);
+
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
