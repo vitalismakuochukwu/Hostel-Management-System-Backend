@@ -172,6 +172,7 @@
 const Admin = require('../models/Admin');
 const crypto = require('crypto');
 const sgMail = require('@sendgrid/mail');
+const bcrypt = require('bcryptjs');
 
 // Initialize SendGrid with your API Key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -184,7 +185,9 @@ const registerAdmin = async (req, res) => {
     if (adminExists) {
       return res.status(400).json({ success: false, message: 'User already exists' });
     }
-    const admin = await Admin.create({ name, email, password });
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const admin = await Admin.create({ name, email, password: hashedPassword });
     res.status(201).json({ success: true, admin: { id: admin._id, name: admin.name, email: admin.email, role: admin.role } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -195,14 +198,27 @@ const registerAdmin = async (req, res) => {
 const loginAdmin = async (req, res) => {
   const { email, password } = req.body;
   try {
-    const admin = await Admin.findOne({ email, password });
-    if (admin) {
-      res.json({ success: true, admin: { id: admin._id, name: admin.name, email: admin.email, role: admin.role } });
+    // 1. Find admin by email only
+    const admin = await Admin.findOne({ email });
+    
+    if (!admin) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    // 2. Compare the typed password with the hashed password in DB
+    const isMatch = await bcrypt.compare(password, admin.password);
+
+    if (isMatch) {
+      // 3. Login successful
+      res.json({ 
+        success: true, 
+        admin: { id: admin._id, name: admin.name, email: admin.email, role: admin.role } 
+      });
     } else {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
