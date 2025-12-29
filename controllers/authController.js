@@ -81,9 +81,30 @@ const activateAccount = async (req, res) => {
 
 const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    // 1. Get the token from headers
+    let token = req.header('Authorization');
+    if (token && token.startsWith('Bearer ')) {
+      token = token.slice(7, token.length).trim();
+    }
+
+    if (!token) {
+      return res.status(401).json({ message: 'No token, authorization denied' });
+    }
+
+    // 2. Verify token and find user
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const user = await User.findById(decoded.id).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 3. Send the user data back
     res.json(user);
-  } catch (error) { res.status(500).json({ message: 'Server error' }); }
+  } catch (error) {
+    console.error("Profile Error:", error.message);
+    res.status(401).json({ message: 'Token is not valid' });
+  }
 };
 
 const updateUserProfile = async (req, res) => {
