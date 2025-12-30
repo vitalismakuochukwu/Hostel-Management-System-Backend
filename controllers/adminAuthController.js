@@ -93,12 +93,13 @@ exports.verifyActivation = async (req, res) => {
     }
 
     admin.isVerified = true;
-    admin.activationCode = undefined;
-    admin.activationCodeExpires = undefined;
+    admin.activationCode = null;
+    admin.activationCodeExpires = null;
     await admin.save();
 
     res.json({ success: true, message: 'Account verified successfully. You can now login.' });
   } catch (error) {
+    console.error('Verify Activation Error:', error);
     res.status(500).json({ message: 'Server Error' });
   }
 };
