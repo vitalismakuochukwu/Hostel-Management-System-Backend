@@ -6,6 +6,7 @@ const adminSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   // New Activation Fields
+  isVerified: { type: Boolean, default: false },
   activationCode: { type: String },
   activationExpire: { type: Date },
   resetPasswordToken: String,

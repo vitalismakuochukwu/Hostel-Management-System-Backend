@@ -33,12 +33,36 @@ const registerAdmin = async (req, res) => {
     }
 
     // 2. Create Admin (Model hashes password automatically)
-    const admin = await Admin.create({ name, email, password });
+    const activationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const activationExpire = Date.now() + 10 * 60 * 1000; // 10 Minutes
+
+    const admin = await Admin.create({ 
+      name, 
+      email, 
+      password,
+      isVerified: false,
+      activationCode,
+      activationExpire
+    });
     
+    const msg = {
+      to: email,
+      from: process.env.EMAIL_FROM,
+      subject: 'Admin Account Activation Code',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Welcome Admin</h2>
+          <p>Your activation code is:</p>
+          <h1 style="color: #1a5c2a; letter-spacing: 5px;">${activationCode}</h1>
+          <p>This code will expire in 10 minutes.</p>
+        </div>
+      `,
+    };
+    await sgMail.send(msg);
+
     res.status(201).json({ 
       success: true, 
-      token: generateToken(admin._id),
-      admin: { id: admin._id, name: admin.name, email: admin.email } 
+      message: 'Registration successful! Please check your email for the activation code.'
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -53,6 +77,14 @@ const loginAdmin = async (req, res) => {
     
     // Check if admin exists AND if password matches using Schema method
     if (admin && (await admin.matchPassword(password))) {
+      if (admin.isVerified === false) {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Account not activated', 
+          requireActivation: true 
+        });
+      }
+
       res.json({ 
         success: true, 
         token: generateToken(admin._id), // Sends the token to frontend
@@ -136,6 +168,41 @@ const forgotPassword = async (req, res) => {
   }
 };
 
+// @desc    Verify Activation Code
+const verifyActivation = async (req, res) => {
+  const { email, code } = req.body;
+  try {
+    const admin = await Admin.findOne({ email });
+
+    if (admin && admin.activationCode === code) {
+      // Check if code has expired
+      if (admin.activationExpire && admin.activationExpire < Date.now()) {
+        return res.status(400).json({ success: false, message: 'Activation code has expired' });
+      }
+
+      admin.isVerified = true;
+      admin.activationCode = undefined;
+      admin.activationExpire = undefined;
+      await admin.save();
+
+      res.json({
+        success: true,
+        token: generateToken(admin._id),
+        admin: {
+          id: admin._id,
+          name: admin.name,
+          email: admin.email,
+        },
+        message: 'Account activated successfully'
+      });
+    } else {
+      res.status(400).json({ success: false, message: 'Invalid activation code' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Resend Code
 const resendCode = async (req, res) => {
   const { email } = req.body;
@@ -162,11 +229,51 @@ const resendCode = async (req, res) => {
   }
 };
 
+// @desc    Resend Activation Code
+const resendActivationCode = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const admin = await Admin.findOne({ email });
+    if (!admin) return res.status(404).json({ success: false, message: 'Admin not found' });
+    
+    if (admin.isVerified) {
+      return res.status(400).json({ success: false, message: 'Account already verified' });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    admin.activationCode = code;
+    admin.activationExpire = Date.now() + 10 * 60 * 1000; // 10 Minutes
+    await admin.save();
+
+    const msg = {
+      to: email,
+      from: process.env.EMAIL_FROM,
+      subject: 'Resend: Admin Activation Code',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Admin Activation Code</h2>
+          <p>Your new activation code is:</p>
+          <h1 style="color: #1a5c2a; letter-spacing: 5px;">${code}</h1>
+          <p>This code will expire in 10 minutes.</p>
+        </div>
+      `,
+    };
+
+    await sgMail.send(msg);
+    res.status(200).json({ success: true, message: 'Activation code resent successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to resend code' });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
   updateProfile,
   updatePassword,
   forgotPassword,
-  resendCode
+  resendCode,
+  resendActivationCode,
+  verifyActivation
 };

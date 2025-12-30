@@ -4,6 +4,7 @@ const Admin = require('../models/Admin');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const sendEmail = require('../utils/sendEmail');
+const { protect } = require('../middleware/authMiddleware');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'secret', {
@@ -146,15 +147,11 @@ router.post('/resend-code', async (req, res) => {
 });
 
 // @route   PUT /api/admin/auth/update-password
-router.put('/update-password', async (req, res) => {
+router.put('/update-password', protect, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Not authorized' });
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-    const admin = await Admin.findById(decoded.id);
-
-    if (!admin) return res.status(404).json({ message: 'Admin not found' });
+    // We need to re-fetch with password to use matchPassword, 
+    // because middleware excludes it.
+    const admin = await Admin.findById(req.admin._id);
 
     if (await admin.matchPassword(req.body.currentPassword)) {
       admin.password = req.body.newPassword;
@@ -180,15 +177,9 @@ router.put('/update-password', async (req, res) => {
 });
 
 // @route   PUT /api/admin/auth/update-profile
-router.put('/update-profile', async (req, res) => {
+router.put('/update-profile', protect, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Not authorized' });
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-    const admin = await Admin.findById(decoded.id);
-
-    if (!admin) return res.status(404).json({ message: 'Admin not found' });
+    const admin = req.admin; // Admin is attached by protect middleware
 
     // Update email
     if (req.body.email) {

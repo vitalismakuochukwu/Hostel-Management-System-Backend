@@ -54,11 +54,13 @@
 
 const express = require('express');
 const router = express.Router();
-const { forgotPassword, loginAdmin, registerAdmin, verifyActivation } = require('../controllers/adminAuthController');
+const { forgotPassword, loginAdmin, registerAdmin, verifyActivation, resendActivationCode, resetPassword } = require('../controllers/adminAuthController');
 
 router.post('/login', loginAdmin);
 router.post('/verify-activation', verifyActivation);
+router.post('/resend-code', resendActivationCode);
 router.post('/register', registerAdmin);
 router.post('/forgot-password', forgotPassword); // Points to the clean controller logic
+router.put('/reset-password/:resetToken', resetPassword);
 
 module.exports = router;
