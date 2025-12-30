@@ -26,13 +26,20 @@ const sendEmail = async (to, subject, html) => {
 // --- Register Admin ---
 exports.registerAdmin = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, adminSecret } = req.body;
+
+    // Validate Admin Secret Key (Security Check)
+    // Ensure ADMIN_SECRET is set in your .env file
+    if (process.env.ADMIN_SECRET && adminSecret !== process.env.ADMIN_SECRET) {
+      return res.status(403).json({ message: 'Invalid Admin Secret Key' });
+    }
 
     let admin = await Admin.findOne({ email });
     if (admin) return res.status(400).json({ message: 'Admin already exists' });
 
     // Generate 6-digit Activation Code
     const activationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`[DEV LOG] Activation Code for ${email}: ${activationCode}`); // Log code for testing
     const activationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 mins
 
     admin = new Admin({
@@ -46,6 +53,9 @@ exports.registerAdmin = async (req, res) => {
 
     await admin.save();
 
+    // Create Activation Link
+    const activationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-activation?email=${encodeURIComponent(email)}&code=${activationCode}`;
+
     // Send Activation Email
     const emailTemplate = `
       <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
@@ -53,6 +63,8 @@ exports.registerAdmin = async (req, res) => {
           <h2 style="color: #14532d;">Admin Activation</h2>
           <p>Your activation code is:</p>
           <h1 style="color: #eab308; letter-spacing: 5px;">${activationCode}</h1>
+          <p>Or click the button below to verify automatically:</p>
+          <a href="${activationUrl}" style="display: inline-block; background-color: #14532d; color: #ffffff; padding: 12px 24px; border-radius: 5px; text-decoration: none; font-weight: bold;">Verify Account</a>
           <p>This code expires in 10 minutes.</p>
         </div>
       </div>
@@ -160,12 +172,17 @@ exports.resendActivationCode = async (req, res) => {
     admin.activationCodeExpires = activationCodeExpires;
     await admin.save();
 
+    // Create Activation Link
+    const activationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-activation?email=${encodeURIComponent(email)}&code=${activationCode}`;
+
     const emailTemplate = `
       <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
         <div style="max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px;">
           <h2 style="color: #14532d;">New Activation Code</h2>
           <p>Your new activation code is:</p>
           <h1 style="color: #eab308; letter-spacing: 5px;">${activationCode}</h1>
+          <p>Or click the button below to verify automatically:</p>
+          <a href="${activationUrl}" style="display: inline-block; background-color: #14532d; color: #ffffff; padding: 12px 24px; border-radius: 5px; text-decoration: none; font-weight: bold;">Verify Account</a>
           <p>This code expires in 10 minutes.</p>
         </div>
       </div>
